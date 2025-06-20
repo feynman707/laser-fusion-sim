@@ -1,11 +1,10 @@
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-import time
 
-st.set_page_config(page_title="레이저 핵융합 시뮬레이션 업그레이드", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="레이저 핵융합 시뮬레이션 (버튼 애니메이션)", layout="centered", initial_sidebar_state="expanded")
 
-st.title("레이저 핵융합 3D 시뮬레이션 (애니메이션 포함)")
+st.title("레이저 핵융합 3D 시뮬레이션 (버튼 애니메이션 포함)")
 
 # 사용자 입력
 laser_power = st.sidebar.slider("레이저 세기 (10^15 W/cm²)", 1.0, 10.0, 5.0, 0.1)
@@ -51,8 +50,6 @@ else:
     st.error(f"⚠️ 융합 실패. nτ = {n_tau:.2e} < {critical_n_tau:.2e}")
 
 # 온도 변화 그래프
-import plotly.graph_objects as go
-
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=time_axis, y=temps, mode="lines+markers", name="온도 (keV)"))
 fig.update_layout(
@@ -64,7 +61,7 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# 3D 구체 색상 변화 및 에너지 방출 애니메이션 함수들
+# 애니메이션 프레임 계산 함수
 
 def temp_to_color(temp):
     r = min(max((temp) / 10, 0), 1)
@@ -83,37 +80,36 @@ def get_glow_frames(base_rgb, steps=20):
         glow_frames.append(f"rgb({r},{g},{b})")
     return glow_frames
 
+# 세션 상태 초기화
+if "frame_idx" not in st.session_state:
+    st.session_state.frame_idx = 0
+
 latest_temp = temps[-1]
 base_rgb = temp_to_color(latest_temp)
-base_color_str = f"rgb{base_rgb}"
+glow_colors = get_glow_frames(base_rgb)
 
 # 3D 구체 기본 좌표
 x=[0, 0, 1, 1, 0, 0, 1, 1]
 y=[0, 1, 0, 1, 0, 1, 0, 1]
 z=[0, 0, 0, 0, 1, 1, 1, 1]
 
-placeholder = st.empty()
+# 애니메이션용 현재 색상
+color = glow_colors[st.session_state.frame_idx]
 
-if fusion_success:
-    glow_colors = get_glow_frames(base_rgb)
-    for color in glow_colors:
-        fig3d = go.Figure(data=[
-            go.Mesh3d(
-                x=x, y=y, z=z,
-                color=color,
-                opacity=0.8,
-                alphahull=5,
-            )
-        ])
-        placeholder.plotly_chart(fig3d, use_container_width=True)
-        time.sleep(0.1)
-else:
-    fig3d = go.Figure(data=[
-        go.Mesh3d(
-            x=x, y=y, z=z,
-            color=base_color_str,
-            opacity=0.7,
-            alphahull=5,
-        )
-    ])
-    placeholder.plotly_chart(fig3d, use_container_width=True)
+fig3d = go.Figure(data=[
+    go.Mesh3d(
+        x=x, y=y, z=z,
+        color=color,
+        opacity=0.8,
+        alphahull=5,
+    )
+])
+
+st.plotly_chart(fig3d, use_container_width=True)
+
+# 애니메이션 프레임 넘기기 버튼
+if st.button("다음 프레임 ▶️"):
+    st.session_state.frame_idx += 1
+    if st.session_state.frame_idx >= len(glow_colors):
+        st.session_state.frame_idx = 0
+    st.experimental_rerun()
