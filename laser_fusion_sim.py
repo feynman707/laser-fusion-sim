@@ -5,7 +5,7 @@ import time
 
 st.set_page_config(page_title="레이저 핵융합 시뮬레이션 업그레이드", layout="centered", initial_sidebar_state="expanded")
 
-st.title("레이저 핵융합 3D 시뮬레이션 (업그레이드)")
+st.title("레이저 핵융합 3D 시뮬레이션 (애니메이션 포함)")
 
 # 사용자 입력
 laser_power = st.sidebar.slider("레이저 세기 (10^15 W/cm²)", 1.0, 10.0, 5.0, 0.1)
@@ -51,6 +51,8 @@ else:
     st.error(f"⚠️ 융합 실패. nτ = {n_tau:.2e} < {critical_n_tau:.2e}")
 
 # 온도 변화 그래프
+import plotly.graph_objects as go
+
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=time_axis, y=temps, mode="lines+markers", name="온도 (keV)"))
 fig.update_layout(
@@ -62,20 +64,17 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# 3D 구체 색상 변화 및 에너지 방출 애니메이션
+# 3D 구체 색상 변화 및 에너지 방출 애니메이션 함수들
+
 def temp_to_color(temp):
     r = min(max((temp) / 10, 0), 1)
     b = 1 - r
     g = 0.2
-    return f"rgb({int(r*255)}, {int(g*255)}, {int(b*255)})"
+    return (int(r*255), int(g*255), int(b*255))
 
-latest_temp = temps[-1]
-base_color = temp_to_color(latest_temp)
-
-# 빛 퍼짐 효과 (성공 시)
 def get_glow_frames(base_rgb, steps=20):
     glow_frames = []
-    r_base, g_base, b_base = [int(c) for c in base_rgb[4:-1].split(",")]
+    r_base, g_base, b_base = base_rgb
     for i in range(steps):
         factor = 0.5 + 0.5 * np.sin(i * np.pi / steps)
         r = min(255, int(r_base + factor * 100))
@@ -84,34 +83,37 @@ def get_glow_frames(base_rgb, steps=20):
         glow_frames.append(f"rgb({r},{g},{b})")
     return glow_frames
 
-sphere = go.Figure()
+latest_temp = temps[-1]
+base_rgb = temp_to_color(latest_temp)
+base_color_str = f"rgb{base_rgb}"
+
+# 3D 구체 기본 좌표
+x=[0, 0, 1, 1, 0, 0, 1, 1]
+y=[0, 1, 0, 1, 0, 1, 0, 1]
+z=[0, 0, 0, 0, 1, 1, 1, 1]
+
+placeholder = st.empty()
 
 if fusion_success:
-    glow_colors = get_glow_frames(base_color)
-    sphere.add_trace(
-        go.Mesh3d(
-            x=[0, 0, 1, 1, 0, 0, 1, 1],
-            y=[0, 1, 0, 1, 0, 1, 0, 1],
-            z=[0, 0, 0, 0, 1, 1, 1, 1],
-            color=glow_colors[0],
-            opacity=0.8,
-            alphahull=5,
-        )
-    )
-    st.write("에너지 방출 애니메이션 (아래)")
+    glow_colors = get_glow_frames(base_rgb)
     for color in glow_colors:
-        sphere.data[0].color = color
-        st.plotly_chart(sphere, use_container_width=True)
-        time.sleep(0.05)
+        fig3d = go.Figure(data=[
+            go.Mesh3d(
+                x=x, y=y, z=z,
+                color=color,
+                opacity=0.8,
+                alphahull=5,
+            )
+        ])
+        placeholder.plotly_chart(fig3d, use_container_width=True)
+        time.sleep(0.1)
 else:
-    sphere.add_trace(
+    fig3d = go.Figure(data=[
         go.Mesh3d(
-            x=[0, 0, 1, 1, 0, 0, 1, 1],
-            y=[0, 1, 0, 1, 0, 1, 0, 1],
-            z=[0, 0, 0, 0, 1, 1, 1, 1],
-            color=base_color,
+            x=x, y=y, z=z,
+            color=base_color_str,
             opacity=0.7,
             alphahull=5,
         )
-    )
-    st.plotly_chart(sphere, use_container_width=True)
+    ])
+    placeholder.plotly_chart(fig3d, use_container_width=True)
